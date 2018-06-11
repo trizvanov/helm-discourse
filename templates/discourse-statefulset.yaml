@@ -1,0 +1,190 @@
+apiVersion: apps/v1beta1
+kind: StatefulSet
+
+metadata:
+  name: {{ template "discourse.web.fullname" . }}
+  labels:
+    app: {{ template "discourse.web.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  serviceName: {{ template "discourse.web.fullname" . }}
+  replicas: {{ .Values.web.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "discourse.fullname" . }}
+    spec:
+      containers:
+        - name: {{ template "discourse.web.fullname" . }}
+          image: {{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}
+          imagePullPolicy: {{ default "" .Values.web.image.imagePullPolicy | quote }}
+          command: ["/app-entrypoint.sh"]
+          args: ["nami", "start", "--foreground", "discourse"]
+          volumeMounts:
+          - name: {{ template "discourse.fullname" . }}-data
+            mountPath: /bitnami
+          env:
+            {{ if .Values.provisionDataStore.postgresql.enabled }}
+            - name: POSTGRESQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: postgres-password
+            - name: POSTGRESQL_HOST
+              value: {{ template "discourse.secretname" . }}
+            {{ else }}
+            - name: POSTGRESQL_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: postgresql-root-user
+            - name: POSTGRESQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: postgresql-root-password
+            - name: POSTGRESQL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "discourse.fullname" . }}
+                  key: postgresql-host
+            - name: POSTGRESQL_PORT_NUMBER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "discourse.fullname" . }}
+                  key: postgresql-port-number
+            {{ end }}
+            - name: POSTGRESQL_CLIENT_CREATE_DATABASE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "discourse.fullname" . }}
+                  key: postgresql_client_create_database_name
+            - name: POSTGRESQL_CLIENT_CREATE_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: postgresql_client_create_database_username
+            - name: POSTGRESQL_CLIENT_CREATE_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: postgresql_client_create_database_password
+            - name: DISCOURSE_POSTGRESQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: discourse_postgresql_username
+            - name: DISCOURSE_POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: discourse_postgresql_password
+            {{ if .Values.provisionDataStore.redis.enabled }}
+            - name: REDIS_HOST
+              value: {{ template "discourse.redis.fullname" . }}
+            {{ else }}
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "discourse.fullname" . }}
+                  key: redis-host
+            - name: REDIS_PORT_NUMBER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "discourse.fullname" . }}
+                  key: redis-port-number
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: redis-password
+            {{ end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.web.service.webPort }}
+          livenessProbe:
+            initialDelaySeconds: 900
+            timeoutSeconds: 5
+            httpGet:
+              path: {{ .Values.web.service.probePath | quote }}
+              port: {{ .Values.web.service.webPort }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.web.service.probePath | quote }}
+              port: {{ .Values.web.service.webPort }}
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+        - name: {{ template "discourse.admin.fullname" . }}-sidekiq
+          image: {{ .Values.admin.image.repository }}:{{ .Values.admin.image.tag }}
+          imagePullPolicy: {{ default "" .Values.admin.image.imagePullPolicy | quote }}
+          command: ["/app-entrypoint.sh"]
+          args: ["nami", "start", "--foreground", "discourse-sidekiq"]
+          env:
+            - name: DISCOURSE_HOST
+              value: localhost
+            - name: DISCOURSE_PORT
+              value: '3000'
+            {{ if .Values.provisionDataStore.postgresql.enabled }}
+            - name: POSTGRESQL_HOST
+              value: {{ template "discourse.postgresql.fullname" . }}
+            {{ else }}
+            - name: POSTGRESQL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "discourse.fullname" . }}
+                  key: postgresql-host
+            - name: POSTGRESQL_PORT_NUMBER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "discourse.fullname" . }}
+                  key: postgresql-port-number
+            {{ end }}
+            - name: DISCOURSE_POSTGRESQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: discourse_postgresql_username
+            - name: DISCOURSE_POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "discourse.secretname" . }}
+                  key: discourse_postgresql_password
+            {{ if .Values.provisionDataStore.redis.enabled }}
+            - name: REDIS_HOST
+              value: {{ template "discourse.redis.fullname" . }}
+            {{ else }}
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "discourse.fullname" . }}
+                  key: redis-host
+            - name: REDIS_PORT_NUMBER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "discourse.fullname" . }}
+                  key: redis-port-number
+            {{ end }}
+
+      volumes:
+        - name: {{ template "discourse.fullname" . }}-data
+        {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ template "discourse.fullname" . }}-data
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ template "discourse.fullname" . }}-data
+      spec:
+        accessModes:
+          - {{ .Values.persistence.accessModes | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size | quote }}
+        storageClassName: {{ .Values.persistence.storageClassName }}
+  {{- end }}

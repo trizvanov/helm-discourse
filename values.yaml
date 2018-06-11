@@ -1,0 +1,162 @@
+## Default values for Discourse Helm Chart, for the Bitnami built container
+## https://hub.docker.com/r/bitnami/discourse/
+
+
+provisionDataStore:
+  postgresql:
+    ## Set to false to use your own Postgres host (in AWS, Google, etc)
+    ##
+    enabled: true
+
+  redis:
+    ## Set to false to use your own Redis host (set up in AWS, Google, etc)
+    ##
+    enabled: true
+
+redis:
+  cluster:
+    enabled: false
+  metrics:
+    enabled: true
+    targetServiceAnnotations:
+      prometheus.io/path: "/metrics"
+      prometheus.io/port: "9121"
+      prometheus.io/scrape: "true"
+  persistence:
+    enabled: false
+  usePassword: false
+
+config:
+
+  ## Todo: These aren't used yet, in the future we will option them for storing
+  ## images in them
+  ##
+  ## s3.bucket: 'my-s3-bucket'
+  ## s3.region: 'us-east-1'
+
+  ## Name of the database to create, for the Discourse application
+  ##
+  postgresql_client_create_database_name: discourse_application
+
+  ## Account and password for the Discourse application to use
+  ## Todo: Are all four required???
+  postgresql_client_create_database_username: bn_discourse
+  postgresql_client_create_database_password: bitnami1
+  discourse_postgresql_username: bn_discourse
+  discourse_postgresql_password: bitnami1
+
+  ## If your using your own Redis, you will need to provide the following:
+  ##
+  # redis-host: ''
+  # redis-password: ''
+  # redis-port-number: ''
+
+  ## If your using your own Postgres, you will need to provide the following:
+  ##
+  # postgresql-host: ''
+  # postgresql-port-number: '5432'
+
+  ## Postgres privileged user and password. It needs to be able to create other
+  ## database users and schemas
+  ##
+  # postgresql-priv-user: ''
+  # postgresql-priv-password: ''
+
+
+## Persistent Volume Storage configuration.
+## ref: https://kubernetes.io/docs/user-guide/persistent-volumes
+##
+persistence:
+  ## Enable persistence using Persistent Volume Claims.
+  ##
+  enabled: true
+
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  ##
+  # storageClass: "-"
+  storageClassName: gp2
+
+  ## Persistent Volume Access Mode.
+  ##
+  accessModes: ReadWriteOnce
+
+  ## Persistent Volume Storage Size.
+  ##
+  size: 8Gi
+
+
+## Configuration values for the Discourse web container
+##
+web:
+  image:
+    repository: bitnami/discourse
+
+    ## Discourse Image Version
+    ## https://hub.docker.com/r/bitnami/discourse/
+    ##
+    tag: 1.9.7
+
+    ## Specify a imagePullPolicy: 'Always' if imageTag is 'latest', else set to 'IfNotPresent'.
+    ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+    ##
+    imagePullPolicy: IfNotPresent
+
+  service:
+    annotations: {}
+    webPort: 3000
+    probePath: /srv/status
+
+  ingress:
+    enabled: true
+    # Used to create Ingress record (should used with service.type: ClusterIP).
+    hosts:
+      - discourse.local
+
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    tls:
+      # Secrets must be manually created in the namespace.
+      # - secretName: chart-example-tls
+      #   hosts:
+      #     - chart-example.local
+
+## Configuration values for the Discourse SideKiq container
+##
+admin:
+  image:
+    repository: bitnami/discourse
+
+    ## Discourse Image Version
+    ## https://hub.docker.com/r/bitnami/discourse/
+    ##
+    tag: 1.9.7
+
+    ## Specify a imagePullPolicy: 'Always' if imageTag is 'latest', else set to 'IfNotPresent'.
+    ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+    ##
+    imagePullPolicy: IfNotPresent
+
+  ingress:
+
+    enabled: false
+    # Used to create Ingress record (should used with service.type: ClusterIP).
+    hosts:
+      - discourse-admin.local
+
+  service:
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    tls:
+      # Secrets must be manually created in the namespace.
+      # - secretName: chart-example-tls
+      #   hosts:
+      #     - chart-example.local
+
+## secretNameOverride can be used when populating a non-default secret name.
+  #  secretNameOverride

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "discourse.web.fullname" . }}
+  labels:
+    app: {{ template "discourse.web.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  {{- if .Values.web.service.annotations }}
+  annotations:
+    {{- range $key, $value := .Values.web.service.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.web.service.webPort }}
+      targetPort: {{ .Values.web.service.webPort }}
+      protocol: TCP
+  selector:
+    app: {{ template "discourse.web.fullname" . }}
